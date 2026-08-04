@@ -92,15 +92,17 @@ altering the signature is not.
   recovery path; missing path echoes the path tried. Operator errors
   (unwritable directory) may be terse.
 - Tool names resolve as `mcp__<server>__<tool>` in `allowed_tools`.
-
-## Schema additions required (delete this section once landed)
-- `TranscriptMeta`: transcript_id, source_path, ingested_at. Description on
-  source_path says provenance only, not a readable path, use `get_transcript`.
-  No word_count, no separate content_hash.
-- `ScopeRecord.transcript_id`: every record names the transcript its
-  source_quotes point into.
-- `ScopeRecordSummary`: record_id, transcript_id, one-line client_context,
-  created_at, requirement count, open-question count.
+- **Record identity is storage's business.** `save_scope_record` writes
+  `<record_id>.json` (the ScopeRecord) and `<record_id>.meta.json`
+  (record_id, created_at, transcript_id). `list_scope_records` reads only
+  the sidecars. Never derive `created_at` from filesystem mtime.
+- **record_id**: `<transcript_id>-<UTC timestamp>`, e.g.
+  `riverstone-a3f9c1b2-20260803T2314Z`. Every record traces back to its
+  transcript and repeated runs sort chronologically.
+- **Timestamps are passed, never defaulted.** `ingested_at` and `created_at`
+  are supplied by the MCP layer at write time, not by `default_factory`. A
+  factory would silently stamp a new time on every construction, hiding
+  idempotency violations.
 
 ## Telemetry (observability layer)
 - Instrumentation uses `openinference-instrumentation-claude-agent-sdk` plus
