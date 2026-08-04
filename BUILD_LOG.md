@@ -51,3 +51,21 @@ from IMPLIED. Without it the confidence enum is just the model's self-report.
   extraction validates as an empty record. Probably a Gap-Analyst check
   rather than a schema change.
 - ORGANIZATIONAL vs TECHNICAL tiebreaker is a guess. Transcript #1 tests it.
+
+## Day 3 — Mon Aug 3 (S1: schema additions)
+
+**Built:** TranscriptMeta, ScopeRecordSummary, ScopeRecord.transcript_id,
+plus `_TRANSCRIPT_ID_DESC` shared across all three. 5 tests, `.d2s/` ignored.
+
+**What fought back:** ScopeRecordSummary needs `record_id` and `created_at`,
+which ScopeRecord does not carry. Filesystem mtime looked like the easy
+answer and is wrong, since any rewrite or container copy silently changes it.
+
+**Decided:** record identity belongs to storage, not the schema. Sidecar
+`.meta.json` per record holds record_id, created_at, transcript_id.
+`record_id` is `<transcript_id>-<UTC timestamp>`. Timestamps are passed at
+write time, never `default_factory`, so idempotency violations stay visible.
+
+**Deferred to S7:** `Stakeholder.confidence` has a hand-written description
+instead of `_CONFIDENCE_DESC`. Pre-existing drift, exactly what the constant
+exists to prevent.
