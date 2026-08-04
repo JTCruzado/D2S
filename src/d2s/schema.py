@@ -11,6 +11,7 @@ Design rules:
   extractor never has to invent a category.
 """
 
+from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -80,6 +81,15 @@ _CONFIDENCE_DESC = (
     "IMPLIED: inferred from what was said but never stated directly. "
     "ASSUMED: filled a gap the call never covered. Use STATED only when a "
     "source_quote supports it."
+)
+
+# Reused wherever a transcript is named. Every layer identifies a transcript
+# the same way, so the format and the recovery path are stated once.
+_TRANSCRIPT_ID_DESC = (
+    "Identifier of an ingested transcript, exactly as ingest_transcript "
+    "returned it: a filename slug followed by a short content hash, for "
+    "example 'riverstone-a3f9c1b2'. Pass it to get_transcript to read the "
+    "transcript text. Never construct or guess this value."
 )
 
 
@@ -210,6 +220,31 @@ class ExternalDependency(BaseModel):
 
 
 # ---------------------------------------------------------------------
+# Transcript provenance
+# ---------------------------------------------------------------------
+
+
+class TranscriptMeta(BaseModel):
+    """What the system knows about an ingested transcript, minus its text.
+
+    Returned by ingestion and listing so a caller can identify a transcript
+    and decide whether to fetch it, without moving the transcript body.
+    """
+
+    transcript_id: str = Field(description=_TRANSCRIPT_ID_DESC)
+    source_path: str = Field(
+        description="Where this transcript came from when it was ingested. "
+        "Provenance only: it records the file the operator supplied and is "
+        "not a path you can read. To get the transcript text, call "
+        "get_transcript with transcript_id."
+    )
+    ingested_at: datetime = Field(
+        description="When this transcript was ingested, as a timezone-aware "
+        "UTC timestamp. Recorded by the ingestion tool."
+    )
+
+
+# ---------------------------------------------------------------------
 # The record
 # ---------------------------------------------------------------------
 
@@ -222,6 +257,10 @@ class ScopeRecord(BaseModel):
     layers of the system.
     """
 
+    transcript_id: str = Field(
+        description=_TRANSCRIPT_ID_DESC + " Every source_quote in this record "
+        "must be a verbatim span from that transcript and no other."
+    )
     client_context: str = Field(
         description="What the client does, what prompted this engagement, and "
         "what they are trying to change. Two to four sentences."
@@ -258,4 +297,35 @@ class ScopeRecord(BaseModel):
         default_factory=list,
         description="Work or decisions outside both parties' control that can "
         "move the schedule.",
+    )
+
+
+class ScopeRecordSummary(BaseModel):
+    """One stored ScopeRecord reduced to what a listing needs.
+
+    Returned by list_scope_records so a caller can choose a record without
+    loading every record's full contents.
+    """
+
+    record_id: str = Field(
+        description="Identifier of the stored scope record. Use it to load "
+        "the full record; this summary omits the record's contents."
+    )
+    transcript_id: str = Field(description=_TRANSCRIPT_ID_DESC)
+    client_context: str = Field(
+        description="Who the client is and what they want, in one line. "
+        "Shortened from the record's full client_context for listing; load "
+        "the record itself for the complete framing."
+    )
+    created_at: datetime = Field(
+        description="When this scope record was created, as a timezone-aware "
+        "UTC timestamp."
+    )
+    requirement_count: int = Field(
+        description="How many requirements the full record holds, must_have "
+        "and nice_to_have together."
+    )
+    open_question_count: int = Field(
+        description="How many open questions the full record holds. A high "
+        "count means the draft is far from a commitment."
     )

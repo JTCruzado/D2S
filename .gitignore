@@ -12,6 +12,9 @@ wheels/
 # Secrets
 .env
 
+# Local transcript and record storage
+.d2s/
+
 # OS/editor
 .DS_Store
 .pytest_cache/
