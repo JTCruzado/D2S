@@ -69,3 +69,36 @@ write time, never `default_factory`, so idempotency violations stay visible.
 **Deferred to S7:** `Stakeholder.confidence` has a hand-written description
 instead of `_CONFIDENCE_DESC`. Pre-existing drift, exactly what the constant
 exists to prevent.
+
+## Day 4 — Tue Aug 4 (S2: the MCP layer)
+
+**Built:** `src/d2s/mcp_server.py` — four typed synchronous core functions
+(`ingest_transcript`, `get_transcript`, `save_scope_record`,
+`list_scope_records`), four thin `@tool` adapters, `storage_root()` as the
+single monkeypatchable seam, and `create_server()` registering the lot as
+`d2s`. 11 tests, ruff clean.
+
+**What fought back:** two places where the settled decisions collided with
+themselves. The sidecar was specified as three fields but `list_scope_records`
+returns a six-field `ScopeRecordSummary` while reading only sidecars — those
+cannot both hold. And the `record_id` format was minute-precision, so two saves
+inside one minute silently overwrote each other. Also checked rather than
+assumed that a handler exception actually reaches the model: it does,
+`mcp/server/lowlevel/server.py` turns it into `_make_error_result(str(e))`,
+which is what makes "failures raise" a real interface rather than a stack trace
+in a log.
+
+**Decided:** the sidecar IS a serialized `ScopeRecordSummary`, written only by
+`save_scope_record`, derived data, never the source of truth — if it and the
+record disagree, the record wins. `record_id` goes to second precision and
+`save_scope_record` now raises rather than overwrite, which supersedes the
+`record_id` bullet and example in CLAUDE.md; that bullet still needs editing.
+`save_scope_record` takes the record as a JSON string so Pydantic's
+field-naming error text becomes the recovery instruction. Ingestion is
+idempotent and quiet, saving is non-idempotent and loud — a re-ingest of
+identical bytes is the same fact, a second record is new work.
+
+**Deferred:** no existence check that a record's `transcript_id` was ever
+ingested — not specified, not invented. `client_context` is copied verbatim
+into the summary though the field description says "shortened"; shortening is
+judgment and Layer 1 makes none.
